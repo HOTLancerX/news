@@ -117,13 +117,15 @@ async function getBlogCategoryPageData(catId: string, _slug: string): Promise<Bl
 // ── Register ──────────────────────────────────────────────────────────────────
 registerServerDataHook("blog-category", getBlogCategoryPageData);
 
-// ── Blog post — category name + url for the category badge ───────────────────
+// ── Blog post — full ancestor chain for nested breadcrumb ────────────────────
 registerServerDataHook("blog", async (_id, _slug, data) => {
-    if (!data?.category) return { categoryName: null, categorySlug: null };
-    const cat = await Cat.findById(data.category).select("title slug").lean() as any;
-    if (!cat) return { categoryName: null, categorySlug: null };
-    return {
-        categoryName: cat.title ?? null,
-        categorySlug: cat.slug  ?? null,
-    };
+    if (!data?.category) return { categoryAncestors: [] };
+    const chain: { _id: string; title: string; slug: string }[] = [];
+    let current: any = await Cat.findById(data.category).lean();
+    while (current) {
+        chain.unshift({ _id: String(current._id), title: current.title ?? '', slug: current.slug ?? '' });
+        if (!current.parentId) break;
+        current = await Cat.findById(current.parentId).lean();
+    }
+    return { categoryAncestors: chain };
 });
