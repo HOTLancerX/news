@@ -4,15 +4,16 @@
  * Extends the core blog post type with:
  *   - Blog box templates (blog-box type) selectable in the Template manager
  *   - Blog category layouts that show real posts + active box
+ *   - Block Post builder element (multi-category post feed)
  *
- * The server-side data fetcher (lib/serverHooks.ts) is auto-discovered
- * by hook/serverDataHooks.ts — no manual imports needed in page.tsx.
- *
- * NO server-only / Mongoose imports here.
+ * NO server-only / Mongoose imports here — server hooks live in serverHooks.ts.
  */
 
-import { addHook, type PluginMeta } from "@/hook";
+import { addHook, addBuilderElement, type PluginMeta } from "@/hook";
 import BlogBox3            from "./box/Box-3";
+import newsHeadingElement  from "./elements/heading";
+import blockPostElement    from "./elements/News";
+import newsStyle1Element   from "./elements/NewsStyle1";
 
 export const PLUGINS: PluginMeta = {
     nx:          "com.system.news",
@@ -27,8 +28,6 @@ export const PLUGINS: PluginMeta = {
 
 export function register() {
     // ─── Blog box templates ─────────────────────────────────────────────────
-    // type: "blog-box" — selectable in the Template manager.
-    // BlogGridClient resolves the active box via getHooks("root.pages").
     addHook("root.pages", [
         {
             key:       "blog-box",
@@ -41,4 +40,9 @@ export function register() {
             component: BlogBox3,
         },
     ], PLUGINS.nx);
+
+    // ─── Builder elements ───────────────────────────────────────────────────
+    addBuilderElement(newsHeadingElement, PLUGINS.nx);
+    addBuilderElement(blockPostElement,   PLUGINS.nx);
+    addBuilderElement(newsStyle1Element,  PLUGINS.nx);
 }
