@@ -34,7 +34,6 @@ export interface NewsStyle1Props {
     title:       string;
     categoryIds: string[];
     limit:       number;
-    /** 1–10, defaults to 1 */
     style:       number;
     colors?:     NewsColors;
 }
@@ -74,11 +73,12 @@ async function fetchData(props: Pick<NewsStyle1Props, "categoryIds" | "limit">):
     const postPrefix = (postPermalink?.prefix ?? "").trim().replace(/^\/+|\/+$/g, "");
     const catPrefix  = (catPermalink?.prefix  ?? "").trim().replace(/^\/+|\/+$/g, "");
 
-    // Resolve category docs
+    const { Types: MongoTypes } = await import("mongoose");
+
+    // ── Tab categories ────────────────────────────────────────────────────────
     let catDocs: any[] = [];
 
     if (props.categoryIds.length > 0) {
-        const { Types: MongoTypes } = await import("mongoose");
         const validIds = props.categoryIds
             .filter((id) => MongoTypes.ObjectId.isValid(id))
             .map((id) => new MongoTypes.ObjectId(id));
@@ -104,24 +104,24 @@ async function fetchData(props: Pick<NewsStyle1Props, "categoryIds" | "limit">):
         url:   buildUrl(catPrefix, c.slug),
     }));
 
-    if (tabs.length === 0) return { tabs: [], postsByCategory: {} };
-
-    const { Types: MongoTypes } = await import("mongoose");
-
-    const allPostsByCategory = await Promise.all(
-        tabs.map((tab) =>
-            Post.find({
-                type:     "blog",
-                status:   "published",
-                category: new MongoTypes.ObjectId(tab._id),
-            })
-                .select("_id title slug createdAt")
-                .sort({ createdAt: -1 })
-                .limit(safeLimit)
-                .lean()
+    // ── Posts per tab ─────────────────────────────────────────────────────────
+    const allPostsByCategory = tabs.length > 0
+        ? await Promise.all(
+            tabs.map((tab) =>
+                Post.find({
+                    type:     "blog",
+                    status:   "published",
+                    category: new MongoTypes.ObjectId(tab._id),
+                })
+                    .select("_id title slug createdAt")
+                    .sort({ createdAt: -1 })
+                    .limit(safeLimit)
+                    .lean()
+            )
         )
-    );
+        : [];
 
+    // ── Batch PostInfo for all posts ──────────────────────────────────────────
     const allPosts = allPostsByCategory.flat();
     const infoMap: Record<string, Record<string, string>> = {};
 
@@ -141,10 +141,10 @@ async function fetchData(props: Pick<NewsStyle1Props, "categoryIds" | "limit">):
         }
     }
 
+    // ── Build postsByCategory map ─────────────────────────────────────────────
     const postsByCategory: Record<string, TabPost[]> = {};
-
     tabs.forEach((tab, i) => {
-        postsByCategory[tab._id] = allPostsByCategory[i].map((p) => {
+        postsByCategory[tab._id] = (allPostsByCategory[i] ?? []).map((p) => {
             const id   = (p._id as Types.ObjectId).toString();
             const info = infoMap[id] ?? {};
             return {

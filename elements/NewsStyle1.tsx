@@ -9,18 +9,20 @@ import {
     AlignSelf,
     Section,
     ColorPickerPopup,
+    Tabs,
+    Typography,
+    Border,
 } from "@/components/builder/controls";
 import { xFetch } from "@/lib/express";
+import NewsStyle1Client from "@/plugin/news/ui/NewsStyle1Client";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Category sorter: select + drag-to-reorder ────────────────────────────────
 
 interface Cat {
     _id: string;
     title: string;
     slug: string;
 }
-
-// ─── Category sorter: select + drag-to-reorder ────────────────────────────────
 
 function CategorySorter({
     value,
@@ -29,7 +31,7 @@ function CategorySorter({
     value: string[];
     onChange: (v: string[]) => void;
 }) {
-    const [cats, setCats] = useState<Cat[]>([]);
+    const [cats, setCats]       = useState<Cat[]>([]);
     const [loading, setLoading] = useState(false);
     const [dragIdx, setDragIdx] = useState<number | null>(null);
 
@@ -43,9 +45,6 @@ function CategorySorter({
 
     const toggle = (id: string) =>
         onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
-
-    // Drag-to-reorder among selected items only
-    const handleDragStart = (idx: number) => setDragIdx(idx);
 
     const handleDrop = (toIdx: number) => {
         if (dragIdx === null || dragIdx === toIdx) return;
@@ -69,26 +68,19 @@ function CategorySorter({
         return <p className="text-xs text-gray-400 px-1">No categories found.</p>;
     }
 
-    // Build ordered selected list + unselected list
-    const selectedIds   = value.filter((id) => cats.some((c) => c._id === id));
+    const selectedIds    = value.filter((id) => cats.some((c) => c._id === id));
     const unselectedCats = cats.filter((c) => !selectedIds.includes(c._id));
     const catById        = Object.fromEntries(cats.map((c) => [c._id, c]));
 
     return (
         <div className="flex flex-col gap-1">
-            {/* "All" toggle */}
             <label className="flex items-center gap-2 px-1 py-1 rounded cursor-pointer hover:bg-gray-50">
-                <input
-                    type="checkbox"
-                    checked={value.length === 0}
-                    onChange={() => onChange([])}
-                    className="w-3.5 h-3.5 accent-indigo-500"
-                />
+                <input type="checkbox" checked={value.length === 0}
+                    onChange={() => onChange([])} className="w-3.5 h-3.5 accent-indigo-500" />
                 <span className="text-xs text-gray-700 font-medium">All categories</span>
             </label>
             <div className="border-t border-gray-100 my-1" />
 
-            {/* Selected — draggable to reorder */}
             {selectedIds.length > 0 && (
                 <>
                     <p className="text-[10px] text-gray-400 px-1 uppercase tracking-wide font-semibold">
@@ -98,166 +90,30 @@ function CategorySorter({
                         const cat = catById[id];
                         if (!cat) return null;
                         return (
-                            <div
-                                key={id}
-                                draggable
-                                onDragStart={() => handleDragStart(idx)}
+                            <div key={id} draggable
+                                onDragStart={() => setDragIdx(idx)}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={() => handleDrop(idx)}
-                                className={`flex items-center gap-2 px-1 py-1 rounded cursor-grab hover:bg-indigo-50 ${
-                                    dragIdx === idx ? "opacity-50" : ""
-                                }`}
+                                className={`flex items-center gap-2 px-1 py-1 rounded cursor-grab hover:bg-indigo-50 ${dragIdx === idx ? "opacity-50" : ""}`}
                             >
                                 <Icon icon="mdi:drag" width={14} className="text-gray-300 shrink-0" />
-                                <input
-                                    type="checkbox"
-                                    checked
-                                    onChange={() => toggle(id)}
-                                    className="w-3.5 h-3.5 accent-indigo-500"
-                                />
+                                <input type="checkbox" checked onChange={() => toggle(id)} className="w-3.5 h-3.5 accent-indigo-500" />
                                 <span className="text-xs text-gray-700">{cat.title}</span>
-                                <span className="ml-auto text-[10px] text-indigo-400 font-semibold">
-                                    #{idx + 1}
-                                </span>
+                                <span className="ml-auto text-[10px] text-indigo-400 font-semibold">#{idx + 1}</span>
                             </div>
                         );
                     })}
-                    {unselectedCats.length > 0 && (
-                        <div className="border-t border-gray-100 my-1" />
-                    )}
+                    {unselectedCats.length > 0 && <div className="border-t border-gray-100 my-1" />}
                 </>
             )}
 
-            {/* Unselected */}
             {unselectedCats.map((cat) => (
-                <label
-                    key={cat._id}
-                    className="flex items-center gap-2 px-1 py-1 rounded cursor-pointer hover:bg-gray-50"
-                >
-                    <span className="w-3.5 shrink-0" /> {/* spacer for drag icon */}
-                    <input
-                        type="checkbox"
-                        checked={false}
-                        onChange={() => toggle(cat._id)}
-                        className="w-3.5 h-3.5 accent-indigo-500"
-                    />
+                <label key={cat._id} className="flex items-center gap-2 px-1 py-1 rounded cursor-pointer hover:bg-gray-50">
+                    <span className="w-3.5 shrink-0" />
+                    <input type="checkbox" checked={false} onChange={() => toggle(cat._id)} className="w-3.5 h-3.5 accent-indigo-500" />
                     <span className="text-xs text-gray-700">{cat.title}</span>
                 </label>
             ))}
-        </div>
-    );
-}
-
-// ─── Canvas preview ───────────────────────────────────────────────────────────
-
-interface PreviewPost {
-    _id: string;
-    title: string;
-    info: { image?: string; excerpt?: string };
-}
-
-function NewsStyle1Preview({ schema }: { schema: any }) {
-    const [posts, setPosts] = useState<PreviewPost[]>([]);
-    const [loading, setLoading] = useState(false);
-
-    const { categoryIds, limit } = schema.content;
-
-    useEffect(() => {
-        setLoading(true);
-        const params = new URLSearchParams({ type: "blog", limit: String(limit || 6) });
-        if (categoryIds?.length) params.set("cats", categoryIds.join(","));
-        xFetch(`/builder-post?${params}`)
-            .then((r) => r.json())
-            .then((data) => { setPosts(data.posts ?? []); setLoading(false); })
-            .catch(() => setLoading(false));
-    }, [JSON.stringify(categoryIds), limit]);
-
-    const { title, style, colors } = schema.content;
-    const bgColor     = colors?.bg      || "";
-    const activeColor = colors?.active  || "#6366f1";
-    const titleColor  = colors?.title   || "";
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-8 gap-2 text-gray-400">
-                <Icon icon="svg-spinners:ring-resize" width={20} />
-                <span className="text-xs">Loading…</span>
-            </div>
-        );
-    }
-
-    const featured  = posts[0];
-    const sidePosts = posts.slice(1);
-
-    return (
-        <div
-            className="w-full rounded-lg p-3"
-            style={bgColor ? { background: bgColor } : undefined}
-        >
-            {/* Title */}
-            {title && (
-                <h2
-                    className="text-xl font-bold mb-4"
-                    style={titleColor ? { color: titleColor } : undefined}
-                >
-                    {title}
-                </h2>
-            )}
-
-            {/* Tab strip preview */}
-            <div className="flex gap-2 mb-4 pb-3 border-b border-gray-100">
-                <span
-                    className="px-3 py-1.5 rounded-full text-xs font-semibold text-white"
-                    style={{ background: activeColor }}
-                >
-                    Category 1
-                </span>
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                    Category 2
-                </span>
-            </div>
-
-            {/* Style label */}
-            <p className="text-[10px] text-gray-400 mb-3 uppercase tracking-wide">Style {style ?? 1}</p>
-
-            {posts.length === 0 && (
-                <div className="py-6 text-center text-xs text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
-                    No posts found — select categories and set limit above.
-                </div>
-            )}
-
-            {featured && (
-                <div className="flex gap-4">
-                    <div className="w-1/2">
-                        <div className="flex flex-col rounded-lg border border-gray-100 overflow-hidden bg-white shadow-sm">
-                            {featured.info?.image ? (
-                                <div className="aspect-video bg-gray-100 overflow-hidden">
-                                    <img src={featured.info.image} alt={featured.title} className="w-full h-full object-cover" />
-                                </div>
-                            ) : (
-                                <div className="aspect-video bg-gray-100 flex items-center justify-center text-gray-200">
-                                    <Icon icon="solar:document-bold" width={32} />
-                                </div>
-                            )}
-                            <div className="p-3">
-                                <p className="text-xs font-bold text-gray-900 line-clamp-2">{featured.title}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="w-1/2 flex flex-col divide-y divide-gray-100">
-                        {sidePosts.map((post) => (
-                            <div key={post._id} className="flex gap-2 py-2">
-                                {post.info?.image && (
-                                    <div className="shrink-0 w-14 h-11 rounded overflow-hidden bg-gray-100">
-                                        <img src={post.info.image} alt={post.title} className="w-full h-full object-cover" />
-                                    </div>
-                                )}
-                                <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-snug">{post.title}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
@@ -276,11 +132,26 @@ const newsStyle1Element = {
             title:       "",
             categoryIds: [] as string[],
             limit:       6,
-            colors: {
-                bg:     "",          // section background
-                active: "#6366f1",   // active tab pill
-                title:  "",          // title text color
+        },
+        style: {
+            // Title
+            titleColor:          "",
+            titleHoverColor:     "",
+            titleTypography:     {
+                fontFamily: "", fontSize: 20, fontSizeUnit: "px",
+                fontWeight: "700", textTransform: "", fontStyle: "",
+                textDecoration: "", lineHeight: 0, lineHeightUnit: "px",
+                letterSpacing: 0, letterSpacingUnit: "px",
+                wordSpacing: 0, wordSpacingUnit: "px",
             },
+            // Active tab pill
+            activeTabColor:      "#6366f1",
+            activeTabTextColor:  "#ffffff",
+            // Inactive tab pill
+            inactiveTabColor:    "",
+            inactiveTabTextColor: "",
+            // Border under header
+            border:              {},
         },
         advanced: {
             margin:    { top: 0, right: 0, bottom: 0, left: 0, unit: "px" },
@@ -290,6 +161,8 @@ const newsStyle1Element = {
     },
 
     controls: [
+
+        // ═══════════════════════════════════════════════════════ LAYOUT ══════
         {
             tab:     "Layout",
             section: "Content",
@@ -334,13 +207,44 @@ const newsStyle1Element = {
                     responsive: false,
                     render:     (value: any, onChange: any) => (
                         <Section label="Number of Posts">
-                            <NumberControl
-                                label="Limit"
-                                value={value ?? 6}
-                                onChange={onChange}
-                                min={2}
-                                max={20}
-                            />
+                            <NumberControl label="Limit" value={value ?? 6} onChange={onChange} min={2} max={20} />
+                        </Section>
+                    ),
+                },
+            ],
+        },
+
+        // ════════════════════════════════════════════════════════ STYLE ══════
+        {
+            tab:     "Style",
+            section: "Title",
+            controls: [
+                {
+                    name:       "titleColor",
+                    responsive: false,
+                    render:     (value: any, onChange: any, { schema, updateSchema }: any) => (
+                        <Section label="Title Color" defaultOpen>
+                            <Tabs tabs={[
+                                {
+                                    label:   "Normal",
+                                    content: <ColorPickerPopup label="Color" value={value ?? ""} onChange={onChange} />,
+                                },
+                                {
+                                    label:   "Hover",
+                                    content: <ColorPickerPopup label="Color"
+                                        value={schema.style?.titleHoverColor ?? ""}
+                                        onChange={(v: string) => updateSchema("style", "titleHoverColor", v)} />,
+                                },
+                            ]} />
+                        </Section>
+                    ),
+                },
+                {
+                    name:       "titleTypography",
+                    responsive: true,
+                    render:     (value: any, onChange: any) => (
+                        <Section label="Title Typography">
+                            <Typography value={value} onChange={onChange} />
                         </Section>
                     ),
                 },
@@ -348,42 +252,74 @@ const newsStyle1Element = {
         },
 
         {
-            tab:     "Layout",
-            section: "Colors",
+            tab:     "Style",
+            section: "Active Tab",
             controls: [
                 {
-                    name:       "colors",
+                    name:       "activeTabColor",
                     responsive: false,
-                    render:     (value: any, onChange: any) => {
-                        const v = value ?? {};
-                        const set = (key: string, color: string) =>
-                            onChange({ ...v, [key]: color });
-                        return (
-                            <Section label="Colors" defaultOpen>
-                                <div className="flex flex-col gap-3">
-                                    <ColorPickerPopup
-                                        label="Background"
-                                        value={v.bg ?? ""}
-                                        onChange={(c) => set("bg", c)}
-                                    />
-                                    <ColorPickerPopup
-                                        label="Active Tab"
-                                        value={v.active ?? "#6366f1"}
-                                        onChange={(c) => set("active", c)}
-                                    />
-                                    <ColorPickerPopup
-                                        label="Title Color"
-                                        value={v.title ?? ""}
-                                        onChange={(c) => set("title", c)}
-                                    />
-                                </div>
-                            </Section>
-                        );
-                    },
+                    render:     (value: any, onChange: any) => (
+                        <Section label="Active Tab" defaultOpen>
+                            <div className="flex flex-col gap-3">
+                                <ColorPickerPopup label="Background" value={value ?? "#6366f1"} onChange={onChange} />
+                            </div>
+                        </Section>
+                    ),
+                },
+                {
+                    name:       "activeTabTextColor",
+                    responsive: false,
+                    render:     (value: any, onChange: any) => (
+                        <Section label="Active Tab Text">
+                            <ColorPickerPopup label="Text Color" value={value ?? "#ffffff"} onChange={onChange} />
+                        </Section>
+                    ),
                 },
             ],
         },
 
+        {
+            tab:     "Style",
+            section: "Inactive Tab",
+            controls: [
+                {
+                    name:       "inactiveTabColor",
+                    responsive: false,
+                    render:     (value: any, onChange: any) => (
+                        <Section label="Inactive Tab" defaultOpen>
+                            <ColorPickerPopup label="Background" value={value ?? ""} onChange={onChange} />
+                        </Section>
+                    ),
+                },
+                {
+                    name:       "inactiveTabTextColor",
+                    responsive: false,
+                    render:     (value: any, onChange: any) => (
+                        <Section label="Inactive Tab Text">
+                            <ColorPickerPopup label="Text Color" value={value ?? ""} onChange={onChange} />
+                        </Section>
+                    ),
+                },
+            ],
+        },
+
+        {
+            tab:     "Style",
+            section: "Border",
+            controls: [
+                {
+                    name:       "border",
+                    responsive: false,
+                    render:     (value: any, onChange: any) => (
+                        <Section label="Header Border">
+                            <Border value={value ?? {}} onChange={onChange} />
+                        </Section>
+                    ),
+                },
+            ],
+        },
+
+        // ══════════════════════════════════════════════════════ ADVANCED ═════
         {
             tab:     "Advanced",
             section: "Spacing",
@@ -413,7 +349,26 @@ const newsStyle1Element = {
         },
     ],
 
-    render: (element: any) => <NewsStyle1Preview schema={element.schema} />,
+    render: (element: any) => {
+        const c = element.schema?.content ?? {};
+        const s = element.schema?.style   ?? {};
+        return (
+            <NewsStyle1Client
+                title={c.title       ?? ""}
+                categoryIds={c.categoryIds ?? []}
+                limit={c.limit       ?? 6}
+                style={c.style       ?? 1}
+                colors={{
+                    active:       s.activeTabColor       || "#6366f1",
+                    activeText:   s.activeTabTextColor   || "#ffffff",
+                    inactive:     s.inactiveTabColor     || "",
+                    inactiveText: s.inactiveTabTextColor || "",
+                    title:        s.titleColor           || "",
+                    titleHover:   s.titleHoverColor      || "",
+                }}
+            />
+        );
+    },
 };
 
 export default newsStyle1Element;

@@ -23,12 +23,18 @@ export interface TabPost {
 }
 
 export interface NewsColors {
-    /** Section background color */
-    bg?:     string;
     /** Active tab pill background */
-    active?: string;
+    active?:             string;
+    /** Active tab pill text */
+    activeText?:         string;
+    /** Inactive tab pill background */
+    inactive?:           string;
+    /** Inactive tab pill text */
+    inactiveText?:       string;
     /** Title text color */
-    title?:  string;
+    title?:              string;
+    /** Title hover color */
+    titleHover?:         string;
 }
 
 // ─── NewsHeader ───────────────────────────────────────────────────────────────
@@ -56,9 +62,12 @@ export function NewsHeader({
 }: NewsHeaderProps) {
     if (!title) return null;
 
-    const showTabs    = tabs.length > 1;
-    const activeColor = colors.active || "#6366f1";
-    const titleColor  = colors.title  || undefined;
+    const showTabs         = tabs.length > 1;
+    const activeColor      = colors.active      || "#6366f1";
+    const activeTextColor  = colors.activeText  || "#ffffff";
+    const inactiveColor    = colors.inactive    || undefined;
+    const inactiveTextColor = colors.inactiveText || undefined;
+    const titleColor       = colors.title       || undefined;
 
     return (
         <div
@@ -84,15 +93,14 @@ export function NewsHeader({
                                 className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer border-0 outline-none"
                                 style={
                                     isActive
-                                        ? { background: activeColor, color: "#fff" }
-                                        : undefined
+                                        ? { background: activeColor, color: activeTextColor }
+                                        : {
+                                            background: inactiveColor  || "#f3f4f6",
+                                            color:      inactiveTextColor || "#4b5563",
+                                          }
                                 }
                             >
-                                {!isActive && (
-                                    // inactive: use Tailwind for default look
-                                    <span className="text-gray-600">{tab.title}</span>
-                                )}
-                                {isActive && tab.title}
+                                {tab.title}
                             </button>
                         );
                     })}
@@ -128,10 +136,7 @@ export default function NewsTabs({
     const posts = postsByCategory[activeId] ?? [];
 
     return (
-        <div
-            className="w-full"
-            style={colors.bg ? { background: colors.bg } : undefined}
-        >
+        <div className="w-full">
             <NewsHeader
                 title={title}
                 tabs={tabs}

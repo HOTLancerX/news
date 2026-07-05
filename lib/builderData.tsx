@@ -29,13 +29,24 @@ registerBuilderElement("blog-post", (schema) => {
 
 registerBuilderElement("news-style-1", (schema) => {
     const c = schema?.content ?? {};
+    const s = schema?.style   ?? {};
+
+    const colors = {
+        active:       s.activeTabColor       || "#6366f1",
+        activeText:   s.activeTabTextColor   || "#ffffff",
+        inactive:     s.inactiveTabColor     || "",
+        inactiveText: s.inactiveTabTextColor || "",
+        title:        s.titleColor           || "",
+        titleHover:   s.titleHoverColor      || "",
+    };
+
     return (
         <NewsStyle1
             title={c.title       ?? ""}
             categoryIds={c.categoryIds ?? []}
             limit={c.limit       ?? 6}
             style={c.style       ?? 1}
-            colors={c.colors}
+            colors={colors}
         />
     );
 });
